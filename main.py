@@ -1,3 +1,4 @@
+# in the name of Allah
 ############### GLOBAL ZONE ################
 # Modules:
 
@@ -6,12 +7,15 @@ import json
 from telegram import *
 from telegram.ext import *
 import datetime
+import random
 # from admin import *
 
 # VARIABLES
 
-TOKEN = "6231214497:AAHTFpTdBKklS9FQieCX3MtaMBak9StrbM8" # replace with your own
-ADMIN_CHAT_ID = 5514445607 # get your chat id from @RawDataBot
+# TOKEN = "6231214497:AAHTFpTdBKklS9FQieCX3MtaMBak9StrbM8" # replace with your own
+TOKEN = "6126767405:AAH4B-wx0ckT6NoMPp6pA3lGoGAU-DxEC9Q" # temp for test
+# ADMIN_CHAT_ID = 5514445607 # get your chat id from @RawDataBot
+ADMIN_CHAT_ID = 1767064220 # temp for test
 CHANNEL_ID = -1001693014687
 # Attention: ADMIN_CHAT_ID should be int.
 
@@ -47,6 +51,10 @@ GET_CONFIGS = 0
 GET_TEST = 0
 SET_INVITER = 0
 GET_DESCRIPTION = 0
+GET_NUMBER_OF_MESSAGES = 0
+GET_MESSAGES = 1
+GET_CARDS = 1
+GET_USER_UNLIMITED_TEST = 1
 
 # Fuction to make write operation easier
 def write_to_db():
@@ -159,6 +167,21 @@ def start(update, context):
 
         /set_description PACKAGE_ID
         برای یک پکیج آیدی خاص توضیح ثبت میکند.
+
+        /set_cards NUMBER_OF_CARDS
+        برای تعیین کردن شماره کارت ها
+
+        /del_cards
+        برای حذف کردن لیست شماره کارت ها
+        
+        /add_unlimited_test CHAT_ID
+        برای اضافه کردن یک آیدی خاص به لیست معاف از محدودیت هفته‌ای تست
+
+        /remove_from_exception CHAT_ID
+        برای حذف یک آیدی به خصوص از معافیت تست
+
+        /db_backup
+        برای دریافت فایل دیتابیس بکاپ بات
 
         """, reply_markup=reply_markup)
     
@@ -391,9 +414,7 @@ def admin_edit_messages(update, context):
         🔹 موارد قابل ویرایش:
 
         start_message: پیام خوش آمد گویی به بات
-        packages: پیامی که در بالای لیست قیمت ها قرار میگیرد
-        card_number: شماره کارت
-        card_owner: نام صاحب شماره کارت  
+        packages: پیامی که در بالای لیست قیمت ها قرار میگیرد 
         tutorials_link: لینک آموزش ها      
 
 
@@ -637,6 +658,83 @@ def admin_get_description(update: Update, context: CallbackContext) -> int:
         context.bot.send_message(chat_id=user_id, text="خطایی رخ داده است.")
     return ConversationHandler.END
 
+def set_cards(update, context):
+    user_id = update.effective_user.id
+    if (user_id != ADMIN_CHAT_ID):
+        context.bot.send_message(chat_id=user_id, text="No! You cant do this to me. stop or I will ban you.")
+        return ConversationHandler.END
+    else:
+        num = update.message.text.split()[1]
+        context.user_data['x'] = int(num)
+        context.bot.send_message(chat_id=user_id, text=f"حله! {num} تا پیام برام بفرست که توی هر کدومش شماره کارت و توضیحات مربوطه‌ش اومده. در آخر end رو بفرست.\n /cancel")
+        return GET_CARDS
+def get_cards(update: Update, context: CallbackContext) -> int:
+    user_id = update.effective_user.id
+    if (user_id != ADMIN_CHAT_ID):
+        context.bot.send_message(chat_id=user_id, text="Stop.")
+        return ConversationHandler.END
+    else:
+        if context.user_data['x'] != 0:
+            try:
+                data['messages'].append(update.message.message_id)
+                write_to_db()
+                context.user_data['x'] -= 1
+                return GET_CARDS
+            except:
+                context.bot.send_message(chat_id=user_id, text="Error. Operation Ended. try again.")
+                return ConversationHandler.END
+        else:
+            context.bot.send_message(chat_id=user_id, text="انجام شد.")
+            return ConversationHandler.END
+
+def delete_cards(update, context):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_CHAT_ID:
+        context.bot.send_message(chat_id=ADMIN_CHAT_ID, text="Error. You cant do this.")
+    else:
+        try:
+            data['messages']['cards'] = []
+            write_to_db()
+            context.bot.send_message(chat_id=user_id, text="همه‌ی کارت ها با موفقیت حذف شدند.")
+        except:
+            context.bot.send_message(chat_id=user_id, text="یک خطا رخ داد. مجدد تلاش کنید.")
+
+def db_backup(update, context):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_CHAT_ID:
+        context.bot.send_message(chat_id=user_id, text="You cant do this. stop.")
+    else:
+        context.bot.send_message(chat_id=user_id, text=f"database backup in:\n{datetime.date}\n{datetime.time}:")
+        with open('data.json', 'rb') as f:
+            context.bot.send_document(chat_id=user_id, document=f)
+
+def add_unlimited_test(update, context):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_CHAT_ID:
+        context.bot.send_message(chat_id=user_id, text="Error. you cant do this operation.")
+        return ConversationHandler.END
+    else:
+        try:
+            idd = int(update.message.text.split()[1])
+            data['exceptions'].append(idd)
+            write_to_db()
+            context.bot.send_message(chat_id=user_id, text=f"کاربر با آیدی زیر با موفقیت به لیست معافیت از یک هفته اضافه شد:{idd}")
+        except:
+            context.bot.send_message(chat_id=user_id, text="خطایی رخ داده است. مجدد امتحان کنید.")
+def remove_from_exception(update, context):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_CHAT_ID:
+        context.bot.send_message(chat_id=user_id, text="You can not do this.")
+    else:
+        idd = int(update.message.text.split()[1])
+        try:
+            for item in data['exceptions']:
+                if item == idd:
+                    data['exceptions'].remove(item)
+                    write_to_db()
+                    context.bot.send_message(chat_id=user_id, text=f"کاربر با آیدی زیر با موفقیت از لیست معافیت یک هفته ای حذف شد.{idd}")
+        except:
+            context.bot.send_message(chat_id=user_id, text="خطایی رخ داده است. مجدد امتحان کنید.")
 ######## END ADMIN ZONE ##########
 
 
@@ -720,21 +818,25 @@ def credit(update, context):
 
 def credit_charge(update, context):
     user_id = update.effective_user.id
+    msg_id = random.choice(data['messages']['cards'])
     card_number = data['messages']['card_number']
     card_owner = data['messages']['card_owner']
-    context.bot.send_message(chat_id=user_id, text=f"""
-    حله 👍 لطفا موارد پایین رو به دقت بخون 🙏
-    💳 برای افزایش موجودی:
-    ۱. مبلغ مورد نظرتون رو به شماره کارت {card_number} به نام {card_owner} واریز کنید.
-    ۲. رسید واریزی رو اینجا بفرستید
-    ۳. پس از تایید ادمین، اعتبار کیف پول شما شارژ میشه.
+    context.bot.copy_message(chat_id=user_id, from_chat_id=ADMIN_CHAT_ID, message_id=msg_id)
 
-    لازم نیست نگران باشید، هر مقداری که واریز کنید همون مقدار به کیف پولتون اضافه میشه پس با خیال راحت شارژ رو انجام بدید. 😊
+    # context.bot.send_message(chat_id=user_id, text=f"""
+    # حله 👍 لطفا موارد پایین رو به دقت بخون 🙏
+    # 💳 برای افزایش موجودی:
+    # ۱. مبلغ مورد نظرتون رو به شماره کارت {card_number} به نام {card_owner} واریز کنید.
+    # ۲. رسید واریزی رو اینجا بفرستید
+    # ۳. پس از تایید ادمین، اعتبار کیف پول شما شارژ میشه.
 
-    ❗️ لطفا هیچ پیامی به جز رسید نفرستین 🙏
+    # لازم نیست نگران باشید، هر مقداری که واریز کنید همون مقدار به کیف پولتون اضافه میشه پس با خیال راحت شارژ رو انجام بدید. 😊
 
-    برای لغو عملیات /cancel را بزنید.
-    """)
+    # ❗️ لطفا هیچ پیامی به جز رسید نفرستین 🙏
+
+    # برای لغو عملیات /cancel را بزنید.
+    # """)
+
     return FIRST1
 def send_resid(update, context):
     user_id = update.effective_user.id
@@ -1155,6 +1257,15 @@ set_package_des_conv_handler = ConversationHandler (
     },
     fallbacks=[CommandHandler('cancel', cancel)]
 )
+
+set_cards_conv_handler = ConversationHandler (
+    entry_points=[CommandHandler('set_cards', set_cards)],
+    states={
+        GET_CARDS: [MessageHandler(~Filters.command, get_cards)]
+    },
+    fallbacks=[CommandHandler('cancel', cancel)]
+)
+
 ################################## */
 
 
@@ -1213,6 +1324,13 @@ def main():
     updater.dispatcher.add_handler(CommandHandler('del_conf', del_conf))
     
     updater.dispatcher.add_handler(CommandHandler('reply', reply_msg))
+    
+    updater.dispatcher.add_handler(CommandHandler('db_backup', db_backup))
+
+    updater.dispatcher.add_handler(CommandHandler('del_cards', delete_cards))
+
+    updater.dispatcher.add_handler(CommandHandler('add_unlimited_test', add_unlimited_test))
+    updater.dispatcher.add_handler(CommandHandler('remove_from_exception', remove_from_exception))
 
     updater.dispatcher.add_handler(CallbackQueryHandler(start, pattern='^start$'))
 
@@ -1241,6 +1359,7 @@ def main():
     updater.dispatcher.add_handler(test_config_conv_handler)
     updater.dispatcher.add_handler(set_inviter_conv_handler)
     updater.dispatcher.add_handler(set_package_des_conv_handler)
+    updater.dispatcher.add_handler(set_cards_conv_handler)
 
     # Start the bot
     updater.start_polling()
